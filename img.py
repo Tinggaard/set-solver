@@ -17,7 +17,7 @@ alias = {"purple": 0, "green": 1, "red": 2,
 #################################
 
 #Path to the image (without the ending)
-imagefile = "images\\set4"
+imagefile = "img\\set4"
 
 
 #Loading the image into cv2
