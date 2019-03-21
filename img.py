@@ -1,34 +1,29 @@
+"""
+Set link to directory and file in the 'imagefile' var, (not including extension)
+Cards cannot overlap
+"""
 import cv2
 import numpy as np
 import solve
 
 
+# constants
 game = solve.game()
 
 alias = {"purple": 0, "green": 1, "red": 2,
         "striped": 0, "empty": 1, "full": 2,
         "peanut": 0, "pill": 1, "rhombus": 2}
 
+#Attribute colors
+colors = [[[120, 50, 50], [150, 255, 255], "purple"],
+          [[50, 50, 50], [80, 255, 255], "green"]]
 
-#################################
-#################################
-####### IMAGE RECOGNITION #######
-#################################
-#################################
+#Relative path to the image (without the extension)
+imagefile = "img\\1\\set1"
 
-#Path to the image (without the ending)
-imagefile = "img\\set4"
-
-
-#Loading the image into cv2
-img = cv2.imread(imagefile + ".jpg", cv2.IMREAD_COLOR)
-img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-threshold = cv2.adaptiveThreshold(img_gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 101, 10)
-
-
-#Converting the image to HSV colorspace (max = 180, 255, 255)
-img_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-
+#For card recognition
+lower_white = np.array([0, 0, 150])
+upper_white = np.array([180, 75, 255])
 
 #Returning black image
 def black(image):
@@ -41,47 +36,49 @@ def write(location, image):
     cv2.imwrite(imagefile + location + ".jpg", image)
 
 
-write("_thresh", threshold)
+#################################
+#################################
+####### IMAGE RECOGNITION #######
+#################################
+#################################
+
+
+#Loading the image into cv2
+img = cv2.imread(imagefile + ".jpg", cv2.IMREAD_COLOR)
+text = img #Used to write number and attributes on
+img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+threshold = cv2.adaptiveThreshold(img_gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 31, 10)
+img_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV) # Converting the image to HSV colorspace (max = 180, 255, 255)
+
+# threshold = cv2.threshold(img_gray)
+
 ######################## FINDING CARDS ##########################
-#Declaring highest and lowest values for color-recognition
-lower_white = np.array([0, 0, 150])
-upper_white = np.array([180, 75, 255])
 
 #Creating a mask to find the shapes in the given color spectrum
 white_mask = cv2.inRange(img_hsv, lower_white, upper_white)
 #Finding the cards by contours
 _, card_cnts, _ = cv2.findContours(white_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-card_cnts = [contour for contour in card_cnts if cv2.contourArea(contour) > 10000]
+card_cnts = [contour for contour in card_cnts if cv2.contourArea(contour) > 100000] #About 600000 for cards
+
+
+
+#Checking card shapes look like one another
+reference_card = card_cnts[0]
+if not all([cv2.matchShapes(reference_card, cd, cv2.CONTOURS_MATCH_I2, 0) < 10 for cd in card_cnts]):
+    raise Exception("Error! Could not match card shapes.")
 
 #Drawing it as a mask
 all_cards = cv2.drawContours(black(img), card_cnts, -1, (255), -1)
-erosion = cv2.erode(all_cards, np.ones((5, 5), np.uint8), iterations=20)
-_, card_cnts, _ = cv2.findContours(erosion, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+_, card_cnts, _ = cv2.findContours(all_cards, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-card_ct = card_cnts[5]
-
-
-rect = cv2.minAreaRect(card_ct)
-box = cv2.boxPoints(rect)
-box = np.int0(box)
-
-single = cv2.drawContours(img, [box], -1, (255, 0, 255), 5)
-write("_single", single)
-
-
-write("_all", all_cards)
 
 print("Found {} cards".format(len(card_cnts)))
 
+
 ################ FINDING ATTRIBUTES - FUNCTIONS ###################
-colors = [[[120, 50, 50], [150, 255, 255], "purple"],
-          [[50, 50, 50], [80, 255, 255], "green"]]
-
-
 
 # Iterating over the cards
 
-"""
 for card_nr, card_cnt in enumerate(card_cnts):
     #Creating mask of the card
     card_mask = cv2.drawContours(black(img), [card_cnt], -1, (255), -1)
@@ -141,8 +138,7 @@ for card_nr, card_cnt in enumerate(card_cnts):
         mean_color_thresh = mean_color_thresh[0]
 
 
-
-        if 180 > mean_color_thresh > 75:
+        if 180 > mean_color_thresh > 100:
             diff[atr_nr].append("striped")
 
         elif mean_color_range < 75:
@@ -178,9 +174,10 @@ for card_nr, card_cnt in enumerate(card_cnts):
 
 
     ################# CHEKCING FOR DIFFERENCES ##################
+    
     if not all([diff[i]==diff[i+1] for i in range(atr_count-1)]):
         raise Exception("Could not identify attributes on card " + str(card_nr))
-
+    
     #Adding the card to game class
     atr_color = alias[diff[0][0]]
     atr_fill = alias[diff[0][1]]
@@ -188,15 +185,15 @@ for card_nr, card_cnt in enumerate(card_cnts):
     game.addCard(solve.card(atr_count-1, atr_color, atr_fill, atr_shape))
 
     #Drawing card-ID on image for refference
-    # x, y, w, h = cv2.boundingRect(card_cnt)
-    # cv2.putText(img, str(card_nr), (x+100, y+100), cv2.FONT_HERSHEY_SIMPLEX, 4, (255, 0, 255), 10)
+    x, y, w, h = cv2.boundingRect(card_cnt)
+    # cv2.putText(text, str(card_nr+1) + diff[0][0] + diff[0][1] + diff[0][2], (x, y), cv2.FONT_HERSHEY_SIMPLEX, 4, (255, 0, 255), 10)
 
 
 
     print("Processed card {} of {}".format(card_nr+1, len(card_cnts)))
 
 #Card ID's on image
-# write("_text", img)
+# write("_text", text)
 print("Successfully processed all cards!")
 
 
@@ -205,6 +202,13 @@ print("Successfully processed all cards!")
 
 print("\nFound {} sets".format(len(game.findSets())))
 
+#Creating folder for the solutions
+from os import getcwd, path, mkdir
+
+cwd = getcwd()
+solved_folder = cwd + "\\" + imagefile + "_solutions\\"
+if not path.exists(solved_folder):
+    mkdir(solved_folder)
 
 
 for num, cards in enumerate(game.findSetsId()):
@@ -216,5 +220,4 @@ for num, cards in enumerate(game.findSetsId()):
 
     the_set = cv2.bitwise_and(img, img, mask=mask)
 
-    cv2.imwrite(imagefile + "_set" + str(num+1) + ".jpg", the_set)
-"""
+    cv2.imwrite(solved_folder + "set" + str(num+1) + ".jpg", the_set)
