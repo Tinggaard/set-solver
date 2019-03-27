@@ -6,6 +6,11 @@ import cv2
 import numpy as np
 import solve
 
+#Relative path to the image (without the extension)
+imagefile = "img\\1\\set1"
+
+image_solution = True
+cli_solution = True
 
 # constants
 game = solve.game()
@@ -18,12 +23,14 @@ alias = {"purple": 0, "green": 1, "red": 2,
 colors = [[[120, 50, 50], [150, 255, 255], "purple"],
           [[50, 50, 50], [80, 255, 255], "green"]]
 
-#Relative path to the image (without the extension)
-imagefile = "img\\1\\set1"
 
 #For card recognition
 lower_white = np.array([0, 0, 150])
 upper_white = np.array([180, 75, 255])
+
+#For attribute recognition
+lower_white_atr = np.array([0, 40, 0])
+upper_white_atr = np.array([180, 255, 255])
 
 #Returning black image
 def black(image):
@@ -71,6 +78,7 @@ if not all([cv2.matchShapes(reference_card, cd, cv2.CONTOURS_MATCH_I2, 0) < 10 f
 all_cards = cv2.drawContours(black(img), card_cnts, -1, (255), -1)
 _, card_cnts, _ = cv2.findContours(all_cards, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+write("_all", all_cards)
 
 print("Found {} cards".format(len(card_cnts)))
 
@@ -87,13 +95,9 @@ for card_nr, card_cnt in enumerate(card_cnts):
 
 
     ######################### NUMBER OF ATTRIBUTES #####################
-    #Declaring highest and lowest values for attribute-recognition
-    lower_white = np.array([0, 60, 0])
-    upper_white = np.array([180, 255, 255])
-
     #Creating a mask to find the shapes in the given spectrum
-    atrs_mask = cv2.inRange(card_hsv, lower_white, upper_white)
-
+    atrs_mask = cv2.inRange(card_hsv, lower_white_atr, upper_white_atr)
+    write("atr", atrs_mask)
 
     #Finding the cotours - The attributes
     _, atrs, _ = cv2.findContours(atrs_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -174,9 +178,9 @@ for card_nr, card_cnt in enumerate(card_cnts):
 
 
     ################# CHEKCING FOR DIFFERENCES ##################
-    
     if not all([diff[i]==diff[i+1] for i in range(atr_count-1)]):
         raise Exception("Could not identify attributes on card " + str(card_nr))
+    
     
     #Adding the card to game class
     atr_color = alias[diff[0][0]]
@@ -185,39 +189,46 @@ for card_nr, card_cnt in enumerate(card_cnts):
     game.addCard(solve.card(atr_count-1, atr_color, atr_fill, atr_shape))
 
     #Drawing card-ID on image for refference
-    x, y, w, h = cv2.boundingRect(card_cnt)
-    # cv2.putText(text, str(card_nr+1) + diff[0][0] + diff[0][1] + diff[0][2], (x, y), cv2.FONT_HERSHEY_SIMPLEX, 4, (255, 0, 255), 10)
+    M = cv2.moments(card_cnt)
+    x = int(M['m10']/M['m00'])
+    y = int(M['m01']/M['m00'])
+    cv2.putText(text, str(card_nr), (x, y), cv2.FONT_HERSHEY_SIMPLEX, 4, (255, 0, 255), 10)
 
 
 
     print("Processed card {} of {}".format(card_nr+1, len(card_cnts)))
 
 #Card ID's on image
-# write("_text", text)
+write("_text", text)
+
 print("Successfully processed all cards!")
-
-
-
-
-
 print("\nFound {} sets".format(len(game.findSets())))
 
-#Creating folder for the solutions
-from os import getcwd, path, mkdir
-
-cwd = getcwd()
-solved_folder = cwd + "\\" + imagefile + "_solutions\\"
-if not path.exists(solved_folder):
-    mkdir(solved_folder)
 
 
-for num, cards in enumerate(game.findSetsId()):
-    set_contours = [card_cnts[i] for i in cards]
+if image_solution:
+    for st1, st2, st3 in game.findSetsId():
+        print("Card {}, {} and {} is a set".format(st1, st2, st3))
 
-    mask = black(img)
-    for cnt in set_contours:
-        mask = cv2.drawContours(mask, [cnt], -1, (255), -1)
 
-    the_set = cv2.bitwise_and(img, img, mask=mask)
 
-    cv2.imwrite(solved_folder + "set" + str(num+1) + ".jpg", the_set)
+if cli_solution:
+    #Creating folder for visual solutions 
+    from os import getcwd, path, mkdir
+
+    cwd = getcwd()
+    solved_folder = cwd + "\\" + imagefile + "_solutions\\"
+    if not path.exists(solved_folder):
+        mkdir(solved_folder)
+
+
+    for num, cards in enumerate(game.findSetsId()):
+        set_contours = [card_cnts[i] for i in cards]
+
+        mask = black(img)
+        for cnt in set_contours:
+            mask = cv2.drawContours(mask, [cnt], -1, (255), -1)
+
+        the_set = cv2.bitwise_and(img, img, mask=mask)
+
+        cv2.imwrite(solved_folder + "set" + str(num+1) + ".jpg", the_set)
