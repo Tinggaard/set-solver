@@ -31,11 +31,15 @@ def crop(cnt, offset=2, *images):
         raise TypeError('"*images" must be nust be of type: "numpy.ndarray"')
 
     #Returning the cropped images
+
+    reference_y, reference_x = images[0].shape[:2]
+
     x,y,w,h = cv2.boundingRect(cnt)
-    y1 = y-offset
-    y2 = y+h+offset
-    x1 = x-offset
-    x2 = x+w+offset
+    y1 = y-offset if offset < y else 0
+    y2 = y+h+offset if y+h+offset < reference_y else None
+    x1 = x-offset if offset < x else 0
+    x2 = x+w+offset if x+w+offset < reference_x else None
+
     return [img[y1:y2, x1:x2] for img in images]
 
 
@@ -111,19 +115,19 @@ def find_cards(path):
         cards = check_cards(contours, outlines, gray)
         found.extend(cards)
 
-    # Printing card ID - for convenience
-    # for n, f in enumerate(found):
-    #     rect = cv2.minAreaRect(f)
-    #     mid_x = int(rect[0][0])
-    #     mid_y = int(rect[0][1])
-    #     cv2.putText(copy, str(n), (mid_x, mid_y), cv2.FONT_HERSHEY_SIMPLEX, 4, 0, 10)
-    # write(path, "_numbers", copy)
+    #Printing card ID - for convenience
+    for n, f in enumerate(found):
+        rect = cv2.minAreaRect(f)
+        mid_x = int(rect[0][0])
+        mid_y = int(rect[0][1])
+        cv2.putText(copy, str(n), (mid_x, mid_y), cv2.FONT_HERSHEY_SIMPLEX, 4, 0, 10)
+    write(path, "_numbers", copy)
 
 
     #For your convinience :)
     print("Found {} cards on image: '{}.jpg'".format(len(found), path))
 
-    # atribs = find_atrs([found[3]], img)
+    # atribs = find_atrs([found[10]], img)
     atribs = find_atrs(found, img)
 
     return found
@@ -154,9 +158,11 @@ def find_atrs(card_contours, im):
 
         card_mask = cv2.drawContours(black(im), [card_cnt], -1, (255), -1)
 
-        #Make smaller image of the card
 
+        #Make smaller image of the card
         copy, card_mask = crop(card_cnt, 2, copy, card_mask)
+
+
         
 
         #Varieties of card 
@@ -215,7 +221,7 @@ def atr_color(atr_im_hsv):
         return "green"
 
     #If more magenta ish (hue == 260..360)
-    elif sum(hist[13:17]) > 1000:
+    elif sum(hist[12:17]) > 1000:
         return "purple"
 
     #Probably just red then
@@ -284,7 +290,9 @@ def atr_shape(atr):
 
 
 #List of files to find sets on...
-filenames = ["img\\1"]
+filenames = ["img\\1", "img\\2", "img\\3", "img\\4", "img\\5", "img\\6", "img\\7"]
+
+# filenames = ["img\\4"]
 
 
 if __name__ == "__main__":
@@ -292,8 +300,12 @@ if __name__ == "__main__":
     #Iterating the files
     for f in filenames:
         cards = find_cards(f)
+        print("_______________________________")
 
 
 
 
 
+
+
+### set5 kort 10, lilla ikke rød
